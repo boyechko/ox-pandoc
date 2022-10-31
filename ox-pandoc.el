@@ -1821,8 +1821,10 @@ output."
       (if (memq name org-pandoc-file-options)
           (setq values
                 (--map (if (file-exists-p it)
-                           (if (= ?~ (string-to-char it)) (expand-file-name it) it)
-                         (error "File (%s) can not be found" it)) values)))
+                           (expand-file-name it)
+                         (warn "File (%s) can not be found" it)
+                         it)
+                       values)))
       (puthash name values org-pandoc-option-table))))
 
 (defun org-pandoc-run-to-buffer-or-file
