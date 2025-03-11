@@ -1458,7 +1458,7 @@ version. If nil, no checks are performed and no warnings generated."
 ;;; ox-pandoc main routine
 
 (defvar org-pandoc-format nil)
-(defvar org-pandoc-option-table nil)
+(defvar org-pandoc-option-alist nil)
 (defvar org-pandoc-format-extensions-str nil)
 (defvar org-pandoc-epub-meta nil)
 (defvar org-pandoc-epub-css nil)
@@ -1694,7 +1694,7 @@ contextual information."
 (defun org-pandoc-template (contents info)
   "Template processor for CONTENTS and INFO.
 Option table is created in this stage."
-  (setq org-pandoc-option-table (make-hash-table))
+  (setq org-pandoc-option-alist '())
   ;; default options
   (org-pandoc-put-options org-pandoc-options)
   (org-pandoc-put-options
@@ -1805,7 +1805,7 @@ output."
   (org-export-expand blob contents t))
 
 (defun org-pandoc-put-options (options)
-  "Put alist OPTIONS to `org-pandoc-option-table'."
+  "Put alist OPTIONS to `org-pandoc-option-alist'."
   (dolist (option options)
     (let* ((name (car option))
            (value (cdr option))
@@ -1818,14 +1818,17 @@ output."
                   ((memq name org-pandoc-colon-separated-options)
                    (split-string value ":"))
                   (t (list value)))))
-      (if (memq name org-pandoc-file-options)
-          (setq values
-                (--map (if (file-exists-p it)
-                           (expand-file-name it)
-                         (warn "File (%s) can not be found" it)
-                         it)
-                       values)))
-      (puthash name values org-pandoc-option-table))))
+      (when (memq name org-pandoc-file-options)
+        (setq values
+          (--map (if (file-exists-p it)
+                     (expand-file-name it)
+                   (warn "File (%s) can not be found" it)
+                   it)
+                 values)))
+      (setf (alist-get name org-pandoc-option-alist)
+            (if (memq name org-pandoc-colon-separated-options)
+                (append values (alist-get name org-pandoc-option-alist))
+              values)))))
 
 (defun org-pandoc-run-to-buffer-or-file
     (input-file format subtreep &optional buffer-or-open)
@@ -1853,10 +1856,9 @@ If 0, target is file and converted file will automatically be opend."
               (equal org-pandoc-format 'epub3))
       (when org-pandoc-epub-css
         (setq css-temp-file (make-temp-file "org-pandoc" nil ".css"))
-        (puthash 'epub-stylesheet
-                 (append (gethash 'epub-stylesheet org-pandoc-option-table)
-                         (list css-temp-file))
-                 org-pandoc-option-table)
+        (setf (alist-get 'epub-stylesheet org-pandoc-option-alist)
+              (append (alist-get 'epub-stylesheet org-pandoc-option-alist)
+                      (list css-temp-file)))
         (with-temp-file css-temp-file
           (insert org-pandoc-epub-css)))
       (when org-pandoc-epub-meta
@@ -1866,7 +1868,7 @@ If 0, target is file and converted file will automatically be opend."
           (insert org-pandoc-epub-meta))))
     (let ((process
            (org-pandoc-run input-file output-file format
-                           'org-pandoc-sentinel org-pandoc-option-table)))
+                           'org-pandoc-sentinel org-pandoc-option-alist)))
       (process-put process 'files (list input-file meta-temp-file css-temp-file))
       (process-put process 'output-file output-file)
       (process-put process 'local-hook-symbol local-hook-symbol)
@@ -1911,7 +1913,7 @@ Called on completion of an asynchronous pandoc process."
 (defun org-pandoc-run (input-file output-file format sentinel &optional options)
   "Run pandoc command with INPUT-FILE (org), OUTPUT-FILE, FORMAT and OPTIONS.
 If BUFFER-OR-FILE is buffer, then output to specified buffer. OPTIONS is
-a hashtable.  Pandoc runs asynchronously and SENTINEL is called
+an alist.  Pandoc runs asynchronously and SENTINEL is called
 when the process completes."
   (let* ((format (symbol-name format))
          (output-format
@@ -1922,13 +1924,15 @@ when the process completes."
             "-t" ,(or output-format format)
             ,@(and output-file
                    (list "-o" (expand-file-name output-file)))
-            ,@(-mapcat (lambda (key)
-                         (-when-let (vals (gethash key options))
-                           (if (equal vals t) (setq vals (list t)))
-                           (--map (concat "--" (symbol-name key)
-                                          (when (not (equal it t)) (format "=%s" it)))
-                                  vals)))
-                       (ht-keys options))
+            ,@(-mapcat (lambda (tuple)
+                         (let ((key (car tuple))
+                               (value (cdr tuple)))
+                           (-when-let (vals value)
+                             (if (equal vals t) (setq vals (list t)))
+                             (--map (concat "--" (symbol-name key)
+                                            (when (not (equal it t)) (format "=%s" it)))
+                                    vals))))
+                       options)
             ,(expand-file-name input-file))))
     (message "Running pandoc with args: %s" args)
     (let ((process
