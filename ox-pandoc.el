@@ -60,21 +60,21 @@
     pdf-engine-opt pdf-engine preserve-tabs print-default-data-file
     print-default-template quiet reference-doc reference-links
     reference-location resource-path section-divs self-contained
-	shift-heading-level-by slide-level standalone strip-comments
-	syntax-definition tab-stop  table-of-contents template title-prefix
-	toc top-level-division toc-depth trace track-changes variable
-	verbose version webtex wrap))
+    shift-heading-level-by slide-level standalone strip-comments
+    syntax-definition tab-stop  table-of-contents template title-prefix
+    toc top-level-division toc-depth trace track-changes variable
+    verbose version webtex wrap))
 
 (defconst org-pandoc-colon-separated-options
   '(abbreviations css include-in-header include-before-body
     include-after-body pdf-engine-opt epub-embed-font bibliography
-    filter lua-filter))
+    filter lua-filter resource-path))
 
 (defconst org-pandoc-file-options
   '(abbreviations bibliography citation-abbreviations csl defaults
     epub-cover-image epub-embed-font epub-metadata include-after-body
     include-before-body include-in-header log lue-filter
-	print-default-data-file reference-doc syntax-definition))
+	print-default-data-file reference-doc resource-path syntax-definition))
 
 (defconst org-pandoc-extensions
   '((asciidoc . txt) (beamer . tex)
